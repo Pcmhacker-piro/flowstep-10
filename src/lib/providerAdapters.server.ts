@@ -101,31 +101,53 @@ export function pickProviderForModel(
   return null;
 }
 
-/** Map a Lovable-gateway `vendor/model` id to the model id the provider's own API expects. */
-function mapModelForProvider(provider: ProviderId, modelId: string): string {
+/**
+ * Map a Lovable-gateway `vendor/model` id to an ordered list of model ids the
+ * provider's own API may accept, strongest first. Design quality depends heavily
+ * on landing on a flagship model, so we ask for the best one and only step down
+ * when the provider answers 404/429 for it.
+ */
+function mapModelForProvider(provider: ProviderId, modelId: string): string[] {
   const [, name = ""] = modelId.split("/");
   const lower = name.toLowerCase();
   if (provider === "gemini") {
     // Use Google's "-latest" aliases so retired versions don't 404 the request.
-    if (lower.includes("pro")) return "gemini-pro-latest";
-    if (lower.includes("flash-lite") || lower.includes("flash_lite")) return "gemini-flash-lite-latest";
-    if (lower.includes("flash")) return "gemini-flash-latest";
-    return "gemini-flash-latest";
+    if (lower.includes("flash-lite") || lower.includes("flash_lite")) return ["gemini-flash-lite-latest"];
+    if (lower.includes("flash")) return ["gemini-flash-latest", "gemini-pro-latest"];
+    return ["gemini-pro-latest", "gemini-flash-latest"];
   }
   if (provider === "openai") {
-    // Lovable exposes future ids like gpt-5.5 that don't exist on OpenAI direct — fall back to a real strong model.
-    if (lower.startsWith("gpt-5") || lower.startsWith("gpt-6") || lower.includes("sol") || lower.includes("terra") || lower.includes("luna"))
-      return lower.includes("mini") || lower.includes("nano") ? "gpt-4o-mini" : "gpt-4o";
-    return name || "gpt-4o";
+    // Lovable exposes ids like gpt-6-astra that don't exist on OpenAI direct — ask for the
+    // strongest real model first, then step down through ids every account can serve.
+    const small = lower.includes("mini") || lower.includes("nano") || lower.includes("luna");
+    if (lower.startsWith("gpt-5") || lower.startsWith("gpt-6") || lower.includes("sol") || lower.includes("terra") || lower.includes("luna")) {
+      return small
+        ? ["gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"]
+        : ["gpt-5.1", "gpt-5", "gpt-4.1", "gpt-4o"];
+    }
+    return [name || "gpt-4.1", "gpt-4.1", "gpt-4o"];
   }
   if (provider === "anthropic") {
-    if (lower.includes("haiku")) return "claude-3-5-haiku-latest";
-    if (lower.includes("opus")) return "claude-opus-4-20250514";
-    return "claude-sonnet-4-20250514";
+    if (lower.includes("haiku")) return ["claude-haiku-4-5", "claude-3-5-haiku-latest"];
+    if (lower.includes("opus")) return ["claude-opus-4-5", "claude-opus-4-20250514", "claude-sonnet-4-5"];
+    return ["claude-sonnet-4-5", "claude-sonnet-4-20250514"];
   }
-  if (provider === "openrouter") return modelId; // native vendor/model
-  return name || modelId;
+  if (provider === "openrouter") return [modelId]; // native vendor/model
+  return [name || modelId];
 }
+
+/** Providers whose OpenAI-compatible endpoint accepts image parts in a user message. */
+const VISION_PROVIDERS = new Set<ProviderId>(["openai", "gemini", "openrouter", "anthropic"]);
+
+/** Generous completion budgets — premium design HTML routinely runs past 8k tokens. */
+const OUTPUT_BUDGET: Record<ProviderId, number> = {
+  openai: 32768,
+  gemini: 32768,
+  openrouter: 32768,
+  anthropic: 32000,
+  nvidia: 16384,
+  groq: 16384,
+};
 
 /** Pull the human-readable error out of a provider's error body. */
 export function providerErrorMessage(provider: ProviderId, status: number, body: string): string {
@@ -160,14 +182,13 @@ export async function streamChatWithUserKey(params: {
   model: string;
   systemPrompt: string;
   userPrompt: string;
+  /** Reference images (data URLs or https URLs) the design must follow. */
+  images?: string[];
   /** Partial output already produced — used to resume a truncated generation. */
   continueFrom?: string;
 }): Promise<Response> {
   const cfg = CONFIGS[params.provider];
-  const primary = params.provider === "openrouter"
-    ? params.model
-    : mapModelForProvider(params.provider, params.model);
-  const candidates = [primary];
+  const candidates = mapModelForProvider(params.provider, params.model).slice();
   if (params.provider === "gemini") {
     // Free Gemini keys have no quota on the "-latest" / preview aliases (they resolve to paid
     // tiers and 429 immediately), so fall through to models a free key can actually serve.
@@ -175,11 +196,24 @@ export async function streamChatWithUserKey(params: {
       if (!candidates.includes(fallback)) candidates.push(fallback);
     }
   }
+  const images = (params.images ?? []).filter((src) => typeof src === "string" && src.length > 0);
+  const useImages = images.length > 0 && VISION_PROVIDERS.has(params.provider);
 
-  const attempt = async (model: string) => {
-    const messages: Array<{ role: string; content: string }> = [
+  const attempt = async (model: string, dropBudget = false) => {
+    const userContent = useImages
+      ? [
+          { type: "text", text: params.userPrompt },
+          {
+            type: "text",
+            text: "REFERENCE IMAGES (attached): treat these as the visual brief. Match their layout structure, palette, typographic scale, spacing rhythm, component shapes and mood. Never describe them in the output — only build.",
+          },
+          ...images.map((src) => ({ type: "image_url", image_url: { url: src } })),
+        ]
+      : params.userPrompt;
+
+    const messages: Array<{ role: string; content: unknown }> = [
       { role: "system", content: params.systemPrompt },
-      { role: "user", content: params.userPrompt },
+      { role: "user", content: userContent },
     ];
     if (params.continueFrom) {
       messages.push({ role: "assistant", content: params.continueFrom });
@@ -189,18 +223,24 @@ export async function streamChatWithUserKey(params: {
           "Your previous message was cut off. Continue the output from exactly where it stopped, mid-token if needed. Do not repeat anything already sent, do not restart, do not add commentary or code fences.",
       });
     }
+    const budget = OUTPUT_BUDGET[params.provider];
     const body: Record<string, unknown> = {
       model,
       stream: true,
-      // Design HTML can run 700+ lines — give the model room so output isn't truncated mid-document.
-      max_tokens: 16384,
       messages,
     };
+    if (!dropBudget) {
+      // Design HTML can run 900+ lines — give the model room so output isn't truncated mid-document.
+      body.max_tokens = budget;
+      // Low-but-not-zero sampling keeps craft consistent without flattening the composition.
+      body.temperature = 0.7;
+    }
 
-    // OpenAI's newer reasoning models reject sampling knobs but need generous completion budget.
+    // OpenAI's newer reasoning models reject sampling knobs but need a generous completion budget.
     if (params.provider === "openai" && /^(o\d|gpt-5|gpt-6)/i.test(model)) {
       delete body.max_tokens;
-      body.max_completion_tokens = 16384;
+      delete body.temperature;
+      if (!dropBudget) body.max_completion_tokens = budget;
     }
     return fetch(cfg.chatUrl, {
       method: "POST",
@@ -215,8 +255,15 @@ export async function streamChatWithUserKey(params: {
     // model instead of burning seconds on backoff. Only 5xx is worth retrying.
     const maxTries = 3;
     for (let tries = 0; tries < maxTries; tries += 1) {
-      const res = await attempt(model);
+      let res = await attempt(model);
       if (res.ok) return res;
+      if (res.status === 400) {
+        // Some accounts reject the large budget or the sampling knob — retry the same
+        // model with the provider defaults before stepping down to a weaker model.
+        await res.body?.cancel().catch(() => {});
+        res = await attempt(model, true);
+        if (res.ok) return res;
+      }
       last = res;
       if (res.status < 500) break;
       if (tries < maxTries - 1) {

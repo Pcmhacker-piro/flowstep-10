@@ -240,6 +240,20 @@ NO FIXED TEMPLATE (layout is decided by the brief, every time)
 - A music player, a trading terminal, a recipe app, and a hospital dashboard must produce four visibly different skeletons. If two runs could be mistaken for the same template with different colours, the layout is wrong — rebuild it from the brief.
 - Chrome elements (sidebars, navbars, tabs, rails, command bars, bottom bars) appear only when the brief justifies them, and their position and style follow the product's nature.`;
 
+/**
+ * Extra guardrails for designs generated with the user's own provider key.
+ * Those models get no reasoning pass, so the craft rules that Astra infers must be
+ * spelled out explicitly or the output drifts into generic template territory.
+ */
+const byoCraftAddendum = `SELF-REVIEW PASS (mandatory, you get no second attempt)
+- Before writing markup, silently plan: the shell, the section order, the type scale, the palette roles, and the primary object on screen. Then build that plan exactly.
+- Write the full page in one pass, top to bottom, and finish it. Never stop early, never summarise, never emit a placeholder comment such as "<!-- more sections -->".
+- Every value comes from the 4px scale and the supplied palette. No invented colours, no random paddings, no mixed radii, no mixed border weights.
+- Density check: a real screen of this kind has 6-12 meaningful regions with real content. A page with three centred cards and a headline is a failure — rebuild it richer.
+- Copy check: every label, name, number, date and status is specific and plausible. No lorem ipsum, "Feature One", "Lorem", "Item 1", "$0.00", or dash placeholders.
+- State check: hover, focus-visible and active styles exist for links, buttons, rows and inputs; transitions are 150-200ms.
+- Final check before the closing tags: alignment, consistent gaps, no clipped or overflowing text, no duplicated blocks, no empty sections. Output ends with </body></html>.`;
+
 function systemPrompt(kind: PlannedScreen["kind"]) {
   return `${kind === "marketing" ? marketingDesignSystem : appDesignSystem}\n\n${sharedColourSystem}\n\n${premiumCraftBar}`;
 }
@@ -330,11 +344,13 @@ async function streamByoScreen(params: {
   byo: { provider: string; apiKey: string; model: string; userId?: string | null };
   system: string;
   userText: string;
+  images: string[];
   screenId: string;
   emit: (event: StreamEvent) => void;
   signal: AbortSignal;
 }) {
-  const { byo, system, userText, screenId, emit, signal } = params;
+  const { byo, userText, images, screenId, emit, signal } = params;
+  const system = `${params.system}\n\n${byoCraftAddendum}`;
   const { streamChatWithUserKey, providerErrorMessage } = await import("@/lib/providerAdapters.server");
 
   let produced = "";
@@ -349,6 +365,7 @@ async function streamByoScreen(params: {
       model: byo.model,
       systemPrompt: system,
       userPrompt: userText,
+      ...(images.length > 0 ? { images } : {}),
       ...(produced ? { continueFrom: produced } : {}),
     });
 
@@ -444,7 +461,7 @@ async function streamOneScreen(params: {
   const userText = buildScreenPrompt(prompt, screens, screen, direction, runId, images.length > 0);
 
   if (byo) {
-    await streamByoScreen({ byo, system, userText, screenId: screen.id, emit, signal });
+    await streamByoScreen({ byo, system, userText, images, screenId: screen.id, emit, signal });
     return;
   }
 
