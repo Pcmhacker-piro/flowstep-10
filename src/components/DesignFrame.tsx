@@ -476,12 +476,14 @@ export function DesignFrame({
   }, [focusRequest, isPartial]);
 
   return (
-    <div className="absolute inset-0 overflow-hidden rounded-2xl bg-white">
+    <div
+      className={`absolute inset-0 overflow-hidden rounded-2xl ${viewport === "desktop" ? "bg-white" : "bg-[#eef1f5]"}`}
+    >
       <div
         style={{
-          width: INNER_W,
+          width: innerW,
           height: innerH,
-          transform: `scale(${scale})`,
+          transform: `translateX(${offsetX * scale}px) scale(${scale})`,
           transformOrigin: "top left",
         }}
         className="absolute left-0 top-0"
@@ -493,15 +495,15 @@ export function DesignFrame({
         title={id}
         sandbox="allow-scripts allow-same-origin"
         style={{
-          width: INNER_W,
+          width: innerW,
           height: innerH,
-          transform: `scale(${scale})`,
+          transform: `translateX(${offsetX * scale}px) scale(${scale})`,
           transformOrigin: "top left",
           opacity: isPartial && safeHtml.length < 2500 ? 0 : 1,
           transition: "opacity 350ms ease",
           pointerEvents: selectMode && !isPartial ? "auto" : "none",
         }}
-        className="relative border-0 bg-transparent"
+        className="relative border-0 bg-white"
       />
       {isPartial && (
         <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-full bg-black/75 px-3 py-1.5 text-xs font-medium text-white backdrop-blur">
