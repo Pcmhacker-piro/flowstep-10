@@ -636,7 +636,9 @@ export const Route = createFileRoute("/api/generate-image")({
             };
 
             try {
-              const concurrency = screens.length > 3 ? 3 : screens.length;
+              // Workers allow 6 concurrent outbound connections per request, so
+              // run 5 screens at a time and keep one slot spare for logging.
+              const concurrency = Math.min(screens.length, 5);
               await Promise.all(Array.from({ length: concurrency }, () => worker()));
               if (!request.signal.aborted) emit({ type: "complete", completed, failed });
             } catch (error) {
