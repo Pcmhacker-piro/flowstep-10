@@ -111,10 +111,12 @@ function mapModelForProvider(provider: ProviderId, modelId: string): string[] {
   const [, name = ""] = modelId.split("/");
   const lower = name.toLowerCase();
   if (provider === "gemini") {
-    // Use Google's "-latest" aliases so retired versions don't 404 the request.
-    if (lower.includes("flash-lite") || lower.includes("flash_lite")) return ["gemini-flash-lite-latest"];
-    if (lower.includes("flash")) return ["gemini-flash-latest", "gemini-pro-latest"];
-    return ["gemini-pro-latest", "gemini-flash-latest"];
+    // Strongest first. Flash-lite is never used as an automatic fallback: it
+    // produces visibly weaker layouts, so only an explicit lite pick lands there.
+    if (lower.includes("flash-lite") || lower.includes("flash_lite"))
+      return ["gemini-flash-lite-latest", "gemini-flash-latest"];
+    if (lower.includes("flash")) return ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-pro"];
+    return ["gemini-2.5-pro", "gemini-pro-latest", "gemini-flash-latest"];
   }
   if (provider === "openai") {
     // Lovable exposes ids like gpt-6-astra that don't exist on OpenAI direct — ask for the
@@ -190,8 +192,8 @@ export async function streamChatWithUserKey(params: {
   const cfg = CONFIGS[params.provider];
   const candidates = mapModelForProvider(params.provider, params.model).slice();
   if (params.provider === "gemini") {
-    // Free Gemini keys have no quota on the "-latest" / preview aliases (they resolve to paid
-    // tiers and 429 immediately), so fall through to models a free key can actually serve.
+    // Free Gemini keys can 429 on paid-tier aliases, so keep capable fallbacks
+    // behind the requested model. Flash-lite is last resort only.
     for (const fallback of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"]) {
       if (!candidates.includes(fallback)) candidates.push(fallback);
     }
@@ -241,6 +243,15 @@ export async function streamChatWithUserKey(params: {
       delete body.max_tokens;
       delete body.temperature;
       if (!dropBudget) body.max_completion_tokens = budget;
+    }
+
+    // Gemini's OpenAI-compatible endpoint drifts off-brief at higher temperature
+    // and skips structure without a little planning, so tighten sampling and give
+    // it light thinking. Both knobs are dropped on the provider-defaults retry.
+    if (params.provider === "gemini" && !dropBudget) {
+      body.temperature = 0.35;
+      body.top_p = 0.9;
+      body.reasoning_effort = "low";
     }
     return fetch(cfg.chatUrl, {
       method: "POST",

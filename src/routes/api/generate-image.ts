@@ -478,7 +478,9 @@ async function streamOneScreen(params: {
       body: JSON.stringify({
         model: "openai/gpt-6-astra",
         stream: true,
-        reasoning: { effort: "low", summary: "concise" },
+        // Minimal deliberation plus no reasoning summary: the design brief is
+        // explicit, so extra thinking tokens only delay the first paint.
+        reasoning: { effort: "minimal" },
         input: [
           { role: "developer", content: [{ type: "input_text", text: system }] },
           {
@@ -636,7 +638,9 @@ export const Route = createFileRoute("/api/generate-image")({
             };
 
             try {
-              const concurrency = screens.length > 3 ? 3 : screens.length;
+              // Workers allow 6 concurrent outbound connections per request, so
+              // run 5 screens at a time and keep one slot spare for logging.
+              const concurrency = Math.min(screens.length, 5);
               await Promise.all(Array.from({ length: concurrency }, () => worker()));
               if (!request.signal.aborted) emit({ type: "complete", completed, failed });
             } catch (error) {
