@@ -16,8 +16,12 @@ export type SavedDesignSummary = {
   updatedAt: string;
 };
 
+/** A canvas item as stored in JSONB — plain JSON, shape owned by the canvas. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type StoredCanvasItem = Record<string, any>;
+
 export type SavedDesign = SavedDesignSummary & {
-  items: unknown[];
+  items: StoredCanvasItem[];
 };
 
 const SUMMARY_COLUMNS =
