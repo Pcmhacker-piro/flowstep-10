@@ -94,6 +94,8 @@ function AppHome() {
   const loadDesignFn = useServerFn(getMyDesign);
   const shareDesignFn = useServerFn(setMyDesignSharing);
   const [tool, setTool] = useState<Tool>("select");
+  // Which device width every generated screen is previewed at.
+  const [viewport, setViewport] = useState<DeviceViewport>("desktop");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const viewRef = useRef({ zoom: 1, pan: { x: 0, y: 0 } });
