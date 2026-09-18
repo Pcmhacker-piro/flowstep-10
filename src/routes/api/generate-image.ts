@@ -335,6 +335,59 @@ function validateGeneratedHtml(text: string) {
 }
 
 /**
+ * Strip anything that isn't the HTML document out of a streamed response.
+ * Gemini in particular likes to open with a sentence of commentary and wrap the
+ * page in a ```html fence, which renders as literal junk on the canvas.
+ */
+function createHtmlOnlyFilter(onText: (text: string) => void, alreadyStarted = false) {
+  let started = alreadyStarted;
+  let head = "";
+  let tail = "";
+
+  const emitClean = (chunk: string) => {
+    const clean = chunk.replace(/```/g, "");
+    if (clean) onText(clean);
+  };
+
+  const push = (delta: string) => {
+    if (!started) {
+      head += delta;
+      const match = /<!doctype html|<html[\s>]/i.exec(head);
+      if (!match) {
+        // Give up waiting once it's clear no document start is coming.
+        if (head.length > 4000) {
+          started = true;
+          const rest = head;
+          head = "";
+          tail = rest;
+        }
+        return;
+      }
+      started = true;
+      tail = head.slice(match.index);
+      head = "";
+    } else {
+      tail += delta;
+    }
+    // Hold back a few characters so a fence split across chunks still gets caught.
+    const safeLen = Math.max(0, tail.length - 4);
+    if (safeLen === 0) return;
+    const out = tail.slice(0, safeLen);
+    tail = tail.slice(safeLen);
+    emitClean(out);
+  };
+
+  const flush = () => {
+    const rest = started ? tail : head;
+    head = "";
+    tail = "";
+    if (rest) emitClean(rest.replace(/```(?:html)?/gi, ""));
+  };
+
+  return { push, flush };
+}
+
+/**
  * Generate one screen with the user's own provider key.
  * Provider keys stream OpenAI-style chat completions and frequently stop at the
  * output-token ceiling, so resume from the partial output until the markup is
@@ -377,6 +430,13 @@ async function streamByoScreen(params: {
 
     finishReason = "";
     let roundText = "";
+    // On resume rounds the document is already open, so only look for its start
+    // on the first round; after that just keep stray fences out.
+    const filter = createHtmlOnlyFilter((text) => {
+      roundText += text;
+      produced += text;
+      emit({ type: "screen-delta", screenId, delta: text });
+    }, produced.length > 0);
     const parser = createParser({
       onEvent(event) {
         if (!event.data || event.data === "[DONE]") return;
@@ -397,9 +457,7 @@ async function streamByoScreen(params: {
         if (choice?.finish_reason) finishReason = choice.finish_reason;
         const delta = choice?.delta?.content;
         if (typeof delta === "string" && delta.length > 0) {
-          roundText += delta;
-          produced += delta;
-          emit({ type: "screen-delta", screenId, delta });
+          filter.push(delta);
         }
       },
     });
@@ -413,6 +471,7 @@ async function streamByoScreen(params: {
       }
     } finally {
       reader.cancel().catch(() => {});
+      filter.flush();
     }
 
     if (providerError && !produced) throw new Error(providerError);
