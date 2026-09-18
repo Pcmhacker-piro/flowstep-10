@@ -182,14 +182,13 @@ export async function streamChatWithUserKey(params: {
   model: string;
   systemPrompt: string;
   userPrompt: string;
+  /** Reference images (data URLs or https URLs) the design must follow. */
+  images?: string[];
   /** Partial output already produced — used to resume a truncated generation. */
   continueFrom?: string;
 }): Promise<Response> {
   const cfg = CONFIGS[params.provider];
-  const primary = params.provider === "openrouter"
-    ? params.model
-    : mapModelForProvider(params.provider, params.model);
-  const candidates = [primary];
+  const candidates = mapModelForProvider(params.provider, params.model).slice();
   if (params.provider === "gemini") {
     // Free Gemini keys have no quota on the "-latest" / preview aliases (they resolve to paid
     // tiers and 429 immediately), so fall through to models a free key can actually serve.
@@ -197,11 +196,24 @@ export async function streamChatWithUserKey(params: {
       if (!candidates.includes(fallback)) candidates.push(fallback);
     }
   }
+  const images = (params.images ?? []).filter((src) => typeof src === "string" && src.length > 0);
+  const useImages = images.length > 0 && VISION_PROVIDERS.has(params.provider);
 
-  const attempt = async (model: string) => {
-    const messages: Array<{ role: string; content: string }> = [
+  const attempt = async (model: string, dropBudget = false) => {
+    const userContent = useImages
+      ? [
+          { type: "text", text: params.userPrompt },
+          {
+            type: "text",
+            text: "REFERENCE IMAGES (attached): treat these as the visual brief. Match their layout structure, palette, typographic scale, spacing rhythm, component shapes and mood. Never describe them in the output — only build.",
+          },
+          ...images.map((src) => ({ type: "image_url", image_url: { url: src } })),
+        ]
+      : params.userPrompt;
+
+    const messages: Array<{ role: string; content: unknown }> = [
       { role: "system", content: params.systemPrompt },
-      { role: "user", content: params.userPrompt },
+      { role: "user", content: userContent },
     ];
     if (params.continueFrom) {
       messages.push({ role: "assistant", content: params.continueFrom });
@@ -211,18 +223,24 @@ export async function streamChatWithUserKey(params: {
           "Your previous message was cut off. Continue the output from exactly where it stopped, mid-token if needed. Do not repeat anything already sent, do not restart, do not add commentary or code fences.",
       });
     }
+    const budget = OUTPUT_BUDGET[params.provider];
     const body: Record<string, unknown> = {
       model,
       stream: true,
-      // Design HTML can run 700+ lines — give the model room so output isn't truncated mid-document.
-      max_tokens: 16384,
       messages,
     };
+    if (!dropBudget) {
+      // Design HTML can run 900+ lines — give the model room so output isn't truncated mid-document.
+      body.max_tokens = budget;
+      // Low-but-not-zero sampling keeps craft consistent without flattening the composition.
+      body.temperature = 0.7;
+    }
 
-    // OpenAI's newer reasoning models reject sampling knobs but need generous completion budget.
+    // OpenAI's newer reasoning models reject sampling knobs but need a generous completion budget.
     if (params.provider === "openai" && /^(o\d|gpt-5|gpt-6)/i.test(model)) {
       delete body.max_tokens;
-      body.max_completion_tokens = 16384;
+      delete body.temperature;
+      if (!dropBudget) body.max_completion_tokens = budget;
     }
     return fetch(cfg.chatUrl, {
       method: "POST",
