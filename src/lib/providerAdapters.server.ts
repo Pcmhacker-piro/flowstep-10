@@ -255,8 +255,15 @@ export async function streamChatWithUserKey(params: {
     // model instead of burning seconds on backoff. Only 5xx is worth retrying.
     const maxTries = 3;
     for (let tries = 0; tries < maxTries; tries += 1) {
-      const res = await attempt(model);
+      let res = await attempt(model);
       if (res.ok) return res;
+      if (res.status === 400) {
+        // Some accounts reject the large budget or the sampling knob — retry the same
+        // model with the provider defaults before stepping down to a weaker model.
+        await res.body?.cancel().catch(() => {});
+        res = await attempt(model, true);
+        if (res.ok) return res;
+      }
       last = res;
       if (res.status < 500) break;
       if (tries < maxTries - 1) {
