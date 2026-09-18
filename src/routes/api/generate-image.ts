@@ -430,6 +430,13 @@ async function streamByoScreen(params: {
 
     finishReason = "";
     let roundText = "";
+    // On resume rounds the document is already open, so only look for its start
+    // on the first round; after that just keep stray fences out.
+    const filter = createHtmlOnlyFilter((text) => {
+      roundText += text;
+      produced += text;
+      emit({ type: "screen-delta", screenId, delta: text });
+    }, produced.length > 0);
     const parser = createParser({
       onEvent(event) {
         if (!event.data || event.data === "[DONE]") return;
