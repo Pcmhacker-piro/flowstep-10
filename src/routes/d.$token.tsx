@@ -118,7 +118,7 @@ function SharedDesignPage() {
                 <iframe
                   title={screen.screenName ?? `Screen ${index + 1}`}
                   srcDoc={screen.html}
-                  sandbox="allow-same-origin"
+                  sandbox="allow-scripts"
                   loading="lazy"
                   className="h-[900px] w-full border-0"
                 />
