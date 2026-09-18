@@ -272,7 +272,12 @@ function AppHome() {
   // Once a finished design has been sized once, freeze its height so later
   // edits don't stretch the card and reflow the canvas.
   const sizedDesignsRef = useRef(new Set<string>());
+  // Switching device preview changes every card's aspect, so allow re-measuring.
+  useEffect(() => {
+    sizedDesignsRef.current.clear();
+  }, [viewport]);
   const onContentHeight = useCallback((designId: string, innerHeight: number) => {
+
     setItems((it) =>
       it.map((i) => {
         if (i.id !== designId || i.type !== "design") return i;
