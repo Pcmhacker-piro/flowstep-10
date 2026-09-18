@@ -457,9 +457,7 @@ async function streamByoScreen(params: {
         if (choice?.finish_reason) finishReason = choice.finish_reason;
         const delta = choice?.delta?.content;
         if (typeof delta === "string" && delta.length > 0) {
-          roundText += delta;
-          produced += delta;
-          emit({ type: "screen-delta", screenId, delta });
+          filter.push(delta);
         }
       },
     });
