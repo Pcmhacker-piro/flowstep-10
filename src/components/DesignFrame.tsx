@@ -26,6 +26,17 @@ type Props = {
   /** Reports the full document height (in 1440px-wide design units) so the
    *  canvas card can grow and show the whole page instead of the top fold. */
   onContentHeight?: (designId: string, innerHeight: number) => void;
+  /** Which device width the page is rendered at, so responsive layouts can be checked. */
+  viewport?: DeviceViewport;
+};
+
+export type DeviceViewport = "desktop" | "tablet" | "mobile";
+
+/** Real device widths — the page sees these as its own viewport width. */
+export const VIEWPORT_WIDTHS: Record<DeviceViewport, number> = {
+  desktop: 1440,
+  tablet: 834,
+  mobile: 390,
 };
 
 const INNER_W = 1440;
