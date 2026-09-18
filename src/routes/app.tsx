@@ -79,7 +79,17 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 function AppHome() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const [email, setEmail] = useState<string | null>(null);
+  // Library persistence: the row this canvas is saved to, if any.
+  const [designId, setDesignId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const saveDesignFn = useServerFn(saveMyDesign);
+  const loadDesignFn = useServerFn(getMyDesign);
+  const shareDesignFn = useServerFn(setMyDesignSharing);
   const [tool, setTool] = useState<Tool>("select");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
