@@ -26,6 +26,17 @@ type Props = {
   /** Reports the full document height (in 1440px-wide design units) so the
    *  canvas card can grow and show the whole page instead of the top fold. */
   onContentHeight?: (designId: string, innerHeight: number) => void;
+  /** Which device width the page is rendered at, so responsive layouts can be checked. */
+  viewport?: DeviceViewport;
+};
+
+export type DeviceViewport = "desktop" | "tablet" | "mobile";
+
+/** Real device widths — the page sees these as its own viewport width. */
+export const VIEWPORT_WIDTHS: Record<DeviceViewport, number> = {
+  desktop: 1440,
+  tablet: 834,
+  mobile: 390,
 };
 
 const INNER_W = 1440;
@@ -91,13 +102,18 @@ export function DesignFrame({
   onPickPart,
   onUnpickPart,
   onContentHeight,
+  viewport = "desktop",
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   // The card keeps the design's 1440px-wide viewport and grows vertically with
   // the page, so a tall generated site is shown in full rather than cropped to
   // the first fold.
   const [innerH, setInnerH] = useState(Math.max(INNER_H, Math.round((height / Math.max(width, 1)) * INNER_W)));
+  // Scale stays tied to the desktop width, so a tablet/mobile page renders as a
+  // proportionally narrow device column centred inside the same card.
   const scale = width / INNER_W;
+  const innerW = VIEWPORT_WIDTHS[viewport];
+  const offsetX = (INNER_W - innerW) / 2;
 
   // The iframe document is written incrementally (document.write) instead of
   // being re-created through srcDoc on every streamed chunk — a fresh srcDoc
@@ -190,7 +206,7 @@ export function DesignFrame({
       if (poll) window.clearInterval(poll);
       window.clearTimeout(settle);
     };
-  }, [html, isPartial, docReady, id, onContentHeight]);
+  }, [html, isPartial, docReady, id, onContentHeight, viewport]);
 
 
 
@@ -460,12 +476,14 @@ export function DesignFrame({
   }, [focusRequest, isPartial]);
 
   return (
-    <div className="absolute inset-0 overflow-hidden rounded-2xl bg-white">
+    <div
+      className={`absolute inset-0 overflow-hidden rounded-2xl ${viewport === "desktop" ? "bg-white" : "bg-[#eef1f5]"}`}
+    >
       <div
         style={{
-          width: INNER_W,
+          width: innerW,
           height: innerH,
-          transform: `scale(${scale})`,
+          transform: `translateX(${offsetX * scale}px) scale(${scale})`,
           transformOrigin: "top left",
         }}
         className="absolute left-0 top-0"
@@ -477,15 +495,15 @@ export function DesignFrame({
         title={id}
         sandbox="allow-scripts allow-same-origin"
         style={{
-          width: INNER_W,
+          width: innerW,
           height: innerH,
-          transform: `scale(${scale})`,
+          transform: `translateX(${offsetX * scale}px) scale(${scale})`,
           transformOrigin: "top left",
           opacity: isPartial && safeHtml.length < 2500 ? 0 : 1,
           transition: "opacity 350ms ease",
           pointerEvents: selectMode && !isPartial ? "auto" : "none",
         }}
-        className="relative border-0 bg-transparent"
+        className="relative border-0 bg-white"
       />
       {isPartial && (
         <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-full bg-black/75 px-3 py-1.5 text-xs font-medium text-white backdrop-blur">

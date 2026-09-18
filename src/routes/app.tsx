@@ -36,9 +36,12 @@ import {
   Save,
   Share2,
   LayoutGrid,
+  Monitor,
+  Tablet,
+  Smartphone,
 } from "lucide-react";
 
-import { DesignFrame, type PartSelection } from "@/components/DesignFrame";
+import { DesignFrame, type DeviceViewport, type PartSelection } from "@/components/DesignFrame";
 import { readSnippetAtPath, spliceAtPath } from "@/lib/htmlSplice";
 import { Inspector } from "@/components/Inspector";
 import { exportDesignZip, exportDesignImage } from "@/lib/exportDesign";
@@ -94,6 +97,8 @@ function AppHome() {
   const loadDesignFn = useServerFn(getMyDesign);
   const shareDesignFn = useServerFn(setMyDesignSharing);
   const [tool, setTool] = useState<Tool>("select");
+  // Which device width every generated screen is previewed at.
+  const [viewport, setViewport] = useState<DeviceViewport>("desktop");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const viewRef = useRef({ zoom: 1, pan: { x: 0, y: 0 } });
@@ -1906,6 +1911,7 @@ function AppHome() {
                         onPickPart={onPickPart}
                         onUnpickPart={onUnpickPart}
                         onContentHeight={onContentHeight}
+                        viewport={viewport}
                       />
 
                     </div>
@@ -2145,6 +2151,28 @@ function AppHome() {
             >
               <Redo2 className="h-4 w-4" />
             </button>
+            <div className="mx-1 flex items-center gap-0.5 rounded-full bg-black/[0.04] p-0.5">
+              {([
+                { id: "desktop" as DeviceViewport, Icon: Monitor, label: "Desktop preview (1440px)" },
+                { id: "tablet" as DeviceViewport, Icon: Tablet, label: "Tablet preview (834px)" },
+                { id: "mobile" as DeviceViewport, Icon: Smartphone, label: "Mobile preview (390px)" },
+              ]).map(({ id, Icon, label }) => (
+                <button
+                  key={id}
+                  onClick={() => setViewport(id)}
+                  aria-label={label}
+                  title={label}
+                  aria-pressed={viewport === id}
+                  className={`rounded-full p-1.5 transition ${
+                    viewport === id
+                      ? "bg-white text-[#0b1220] shadow-sm"
+                      : "text-[#0b1220]/50 hover:bg-black/5"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </button>
+              ))}
+            </div>
             <div className="mx-1 flex items-center gap-0.5 rounded-full px-1">
               <button
                 onClick={fitCanvas}
