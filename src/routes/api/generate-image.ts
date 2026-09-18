@@ -471,6 +471,7 @@ async function streamByoScreen(params: {
       }
     } finally {
       reader.cancel().catch(() => {});
+      filter.flush();
     }
 
     if (providerError && !produced) throw new Error(providerError);
