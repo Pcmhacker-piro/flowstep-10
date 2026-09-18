@@ -244,6 +244,15 @@ export async function streamChatWithUserKey(params: {
       delete body.temperature;
       if (!dropBudget) body.max_completion_tokens = budget;
     }
+
+    // Gemini's OpenAI-compatible endpoint drifts off-brief at higher temperature
+    // and skips structure without a little planning, so tighten sampling and give
+    // it light thinking. Both knobs are dropped on the provider-defaults retry.
+    if (params.provider === "gemini" && !dropBudget) {
+      body.temperature = 0.35;
+      body.top_p = 0.9;
+      body.reasoning_effort = "low";
+    }
     return fetch(cfg.chatUrl, {
       method: "POST",
       headers: cfg.headers(params.apiKey),
