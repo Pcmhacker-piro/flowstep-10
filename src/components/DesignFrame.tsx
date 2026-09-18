@@ -206,7 +206,7 @@ export function DesignFrame({
       if (poll) window.clearInterval(poll);
       window.clearTimeout(settle);
     };
-  }, [html, isPartial, docReady, id, onContentHeight]);
+  }, [html, isPartial, docReady, id, onContentHeight, viewport]);
 
 
 
