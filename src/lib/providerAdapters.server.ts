@@ -253,10 +253,12 @@ export async function streamChatWithUserKey(params: {
     // and skips structure without a little planning, so tighten sampling and give
     // it light thinking. Both knobs are dropped on the provider-defaults retry.
     if (params.provider === "gemini" && !dropBudget) {
-      body.temperature = 0.35;
+      body.temperature = 0.45;
       body.top_p = 0.9;
-      body.reasoning_effort = "low";
+      // Flash skips composition work with light thinking — give it real planning budget.
+      body.reasoning_effort = params.continueFrom ? "low" : "high";
     }
+
     return fetch(cfg.chatUrl, {
       method: "POST",
       headers: cfg.headers(params.apiKey),
