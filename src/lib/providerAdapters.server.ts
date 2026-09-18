@@ -215,8 +215,12 @@ export async function streamChatWithUserKey(params: {
 
     const messages: Array<{ role: string; content: unknown }> = [
       { role: "system", content: params.systemPrompt },
+      ...(params.provider === "gemini"
+        ? [{ role: "system" as const, content: GEMINI_CRAFT_ADDENDUM }]
+        : []),
       { role: "user", content: userContent },
     ];
+
     if (params.continueFrom) {
       messages.push({ role: "assistant", content: params.continueFrom });
       messages.push({
