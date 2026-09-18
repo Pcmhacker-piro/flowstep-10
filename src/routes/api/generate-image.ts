@@ -447,7 +447,7 @@ async function streamOneScreen(params: {
   const userText = buildScreenPrompt(prompt, screens, screen, direction, runId, images.length > 0);
 
   if (byo) {
-    await streamByoScreen({ byo, system, userText, screenId: screen.id, emit, signal });
+    await streamByoScreen({ byo, system, userText, images, screenId: screen.id, emit, signal });
     return;
   }
 
