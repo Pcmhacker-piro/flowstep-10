@@ -192,8 +192,8 @@ export async function streamChatWithUserKey(params: {
   const cfg = CONFIGS[params.provider];
   const candidates = mapModelForProvider(params.provider, params.model).slice();
   if (params.provider === "gemini") {
-    // Free Gemini keys have no quota on the "-latest" / preview aliases (they resolve to paid
-    // tiers and 429 immediately), so fall through to models a free key can actually serve.
+    // Free Gemini keys can 429 on paid-tier aliases, so keep capable fallbacks
+    // behind the requested model. Flash-lite is last resort only.
     for (const fallback of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"]) {
       if (!candidates.includes(fallback)) candidates.push(fallback);
     }
