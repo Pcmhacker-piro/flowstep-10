@@ -478,7 +478,9 @@ async function streamOneScreen(params: {
       body: JSON.stringify({
         model: "openai/gpt-6-astra",
         stream: true,
-        reasoning: { effort: "low", summary: "concise" },
+        // Minimal deliberation plus no reasoning summary: the design brief is
+        // explicit, so extra thinking tokens only delay the first paint.
+        reasoning: { effort: "minimal" },
         input: [
           { role: "developer", content: [{ type: "input_text", text: system }] },
           {
