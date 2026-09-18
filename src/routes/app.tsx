@@ -1224,7 +1224,10 @@ function AppHome() {
             | { type: "manifest"; screens: Array<{ id: string; name: string }> }
             | { type: "screen-start"; screenId: string }
             | { type: "screen-delta"; screenId: string; delta: string }
+            | { type: "screen-critique"; screenId: string; score: number; passed: boolean; issues: Array<{ area: string; message: string }> }
+            | { type: "screen-replace"; screenId: string; html: string }
             | { type: "screen-complete"; screenId: string }
+
             | { type: "screen-error"; screenId: string; message: string }
             | { type: "complete"; completed: number; failed: number }
             | { type: "error"; message: string };
