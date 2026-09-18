@@ -1260,8 +1260,16 @@ function AppHome() {
           } else if (payload.type === "screen-delta") {
             htmlByScreen.set(payload.screenId, (htmlByScreen.get(payload.screenId) ?? "") + payload.delta);
             setProgressStep(4);
+          } else if (payload.type === "screen-critique") {
+            if (!payload.passed) {
+              setProgressStep(4);
+            }
+          } else if (payload.type === "screen-replace") {
+            htmlByScreen.set(payload.screenId, payload.html);
+            flushScreen(payload.screenId, false);
           } else if (payload.type === "screen-complete") {
             flushScreen(payload.screenId, true);
+
           } else if (payload.type === "screen-error") {
             failedCount += 1;
             const designId = screenIds.get(payload.screenId);
