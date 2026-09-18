@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
+  ArrowLeft,
   Copy,
   ExternalLink,
   Loader2,
@@ -157,6 +158,14 @@ function LibraryPage() {
       <header className="sticky top-0 z-10 border-b border-black/5 bg-white/85 backdrop-blur">
         <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-6 py-4 sm:flex sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
+            <Link
+              to="/app"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#0b1220]/60 transition-colors duration-150 hover:bg-[#f4f4f5] hover:text-[#0b1220]"
+              aria-label="Back to canvas"
+              title="Back to canvas"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
             <Link to="/app" className="flex items-center gap-2">
               <img src={logoAsset} alt="Flowstep" className="h-7 w-7 shrink-0 rounded-lg" />
               <span className="truncate text-base font-semibold tracking-tight text-[#0b1220]">
