@@ -33,18 +33,25 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Maximize2,
+  Save,
+  Share2,
+  LayoutGrid,
 } from "lucide-react";
 
 import { DesignFrame, type PartSelection } from "@/components/DesignFrame";
 import { readSnippetAtPath, spliceAtPath } from "@/lib/htmlSplice";
 import { Inspector } from "@/components/Inspector";
 import { exportDesignZip, exportDesignImage } from "@/lib/exportDesign";
+import { getMyDesign, saveMyDesign, setMyDesignSharing } from "@/lib/designs.functions";
 
 
 
 
 
 export const Route = createFileRoute("/app")({
+  validateSearch: (s: Record<string, unknown>): { design?: string } => ({
+    design: typeof s.design === "string" ? s.design : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "AI Design Canvas — Flowstep" },
@@ -75,7 +82,17 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 function AppHome() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const [email, setEmail] = useState<string | null>(null);
+  // Library persistence: the row this canvas is saved to, if any.
+  const [designId, setDesignId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const saveDesignFn = useServerFn(saveMyDesign);
+  const loadDesignFn = useServerFn(getMyDesign);
+  const shareDesignFn = useServerFn(setMyDesignSharing);
   const [tool, setTool] = useState<Tool>("select");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -531,6 +548,111 @@ function AppHome() {
   async function signOut() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
+  }
+
+  // Open a saved design when the canvas is entered as /app?design=<id>.
+  const requestedDesignId = search.design ?? null;
+  useEffect(() => {
+    if (!requestedDesignId || !email) return;
+    let cancelled = false;
+    loadDesignFn({ data: { id: requestedDesignId } })
+      .then((saved) => {
+        if (cancelled || !saved) return;
+        setDesignId(saved.id);
+        setDesignName(saved.name);
+        setItems((saved.items as CanvasItem[]) ?? []);
+        setLastSavedAt(saved.updatedAt);
+        setShareUrl(
+          saved.isPublic && saved.shareToken
+            ? `${window.location.origin}/d/${saved.shareToken}`
+            : null,
+        );
+        setMessages((m) => [
+          ...m,
+          { id: uid(), role: "assistant", text: `Opened "${saved.name}" from your library.` },
+        ]);
+      })
+      .catch(() => toast.error("We couldn't open that design."));
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedDesignId, email, loadDesignFn]);
+
+  const designCount = items.filter((i) => i.type === "design").length;
+
+  async function saveToLibrary() {
+    if (designCount === 0) {
+      toast.error("Generate a screen before saving.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const firstDesign = items.find((i) => i.type === "design");
+      const saved = await saveDesignFn({
+        data: {
+          id: designId,
+          name: designName.trim() || "Untitled design",
+          prompt: firstDesign && firstDesign.type === "design" ? firstDesign.prompt : prompt,
+          model,
+          items,
+        },
+      });
+      setDesignId(saved.id);
+      setLastSavedAt(saved.updatedAt);
+      toast.success("Saved to your library");
+    } catch {
+      toast.error("Couldn't save this design. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleShareLink() {
+    let id = designId;
+    if (!id) {
+      if (designCount === 0) {
+        toast.error("Generate a screen before sharing.");
+        return;
+      }
+      setSaving(true);
+      try {
+        const saved = await saveDesignFn({
+          data: {
+            id: null,
+            name: designName.trim() || "Untitled design",
+            prompt,
+            model,
+            items,
+          },
+        });
+        id = saved.id;
+        setDesignId(saved.id);
+        setLastSavedAt(saved.updatedAt);
+      } catch {
+        toast.error("Couldn't save this design, so it can't be shared yet.");
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    setSharing(true);
+    try {
+      const updated = await shareDesignFn({ data: { id, isPublic: !shareUrl } });
+      if (updated.isPublic && updated.shareToken) {
+        const url = `${window.location.origin}/d/${updated.shareToken}`;
+        setShareUrl(url);
+        await navigator.clipboard?.writeText(url).catch(() => {});
+        toast.success("Public link copied to clipboard");
+      } else {
+        setShareUrl(null);
+        toast.success("Sharing turned off");
+      }
+    } catch {
+      toast.error("Couldn't update the share link.");
+    } finally {
+      setSharing(false);
+    }
   }
 
   // Panning state
@@ -1214,7 +1336,42 @@ function AppHome() {
             className="ml-3 min-w-0 max-w-[240px] rounded-md bg-transparent px-1.5 py-0.5 text-sm text-[#0b1220]/70 outline-none hover:bg-black/5 focus:bg-black/5 focus:text-[#0b1220]"
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {lastSavedAt && (
+            <span className="hidden text-xs text-[#0b1220]/45 lg:inline">
+              Saved {new Date(lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          <button
+            onClick={saveToLibrary}
+            disabled={saving || designCount === 0}
+            title="Save this canvas to your library"
+            className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-[#0b1220]/80 transition-colors duration-150 hover:bg-black/5 hover:text-[#0b1220] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{saving ? "Saving…" : designId ? "Save" : "Save"}</span>
+          </button>
+          <button
+            onClick={toggleShareLink}
+            disabled={sharing || designCount === 0}
+            title={shareUrl ? "Copy or turn off the public link" : "Create a public share link"}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${
+              shareUrl
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                : "border-black/10 bg-white text-[#0b1220]/80 hover:bg-black/5 hover:text-[#0b1220]"
+            }`}
+          >
+            {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{shareUrl ? "Shared" : "Share"}</span>
+          </button>
+          <Link
+            to="/library"
+            title="Your saved designs"
+            className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-[#0b1220]/80 transition-colors duration-150 hover:bg-black/5 hover:text-[#0b1220]"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Library</span>
+          </Link>
           <Link
             to="/account"
             className="hidden items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-[#0b1220]/80 hover:bg-black/5 hover:text-[#0b1220] sm:inline-flex"

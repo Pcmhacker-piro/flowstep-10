@@ -448,8 +448,8 @@ function AuthPage() {
               {isSignup && (
                 <p className="pt-1 text-xs leading-relaxed text-[#0b1220]/50">
                   By creating an account, you acknowledge that you have read, understood, and agree to our{" "}
-                  <a className="underline" href="#">Terms of Use</a> and{" "}
-                  <a className="underline" href="#">Privacy Policy</a>.
+                  <Link className="underline" to="/terms">Terms of Use</Link> and{" "}
+                  <Link className="underline" to="/privacy">Privacy Policy</Link>.
                 </p>
               )}
             </form>
