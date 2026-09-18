@@ -1224,7 +1224,10 @@ function AppHome() {
             | { type: "manifest"; screens: Array<{ id: string; name: string }> }
             | { type: "screen-start"; screenId: string }
             | { type: "screen-delta"; screenId: string; delta: string }
+            | { type: "screen-critique"; screenId: string; score: number; passed: boolean; issues: Array<{ area: string; message: string }> }
+            | { type: "screen-replace"; screenId: string; html: string }
             | { type: "screen-complete"; screenId: string }
+
             | { type: "screen-error"; screenId: string; message: string }
             | { type: "complete"; completed: number; failed: number }
             | { type: "error"; message: string };
@@ -1257,8 +1260,16 @@ function AppHome() {
           } else if (payload.type === "screen-delta") {
             htmlByScreen.set(payload.screenId, (htmlByScreen.get(payload.screenId) ?? "") + payload.delta);
             setProgressStep(4);
+          } else if (payload.type === "screen-critique") {
+            if (!payload.passed) {
+              setProgressStep(4);
+            }
+          } else if (payload.type === "screen-replace") {
+            htmlByScreen.set(payload.screenId, payload.html);
+            flushScreen(payload.screenId, false);
           } else if (payload.type === "screen-complete") {
             flushScreen(payload.screenId, true);
+
           } else if (payload.type === "screen-error") {
             failedCount += 1;
             const designId = screenIds.get(payload.screenId);

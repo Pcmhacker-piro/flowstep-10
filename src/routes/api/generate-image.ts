@@ -6,10 +6,13 @@ type StreamEvent =
   | { type: "manifest"; screens: PlannedScreen[] }
   | { type: "screen-start"; screenId: string }
   | { type: "screen-delta"; screenId: string; delta: string }
+  | { type: "screen-critique"; screenId: string; score: number; passed: boolean; issues: Array<{ area: string; message: string }> }
+  | { type: "screen-replace"; screenId: string; html: string }
   | { type: "screen-complete"; screenId: string }
   | { type: "screen-error"; screenId: string; message: string }
   | { type: "complete"; completed: number; failed: number }
   | { type: "error"; message: string };
+
 
 const encoder = new TextEncoder();
 
@@ -496,8 +499,109 @@ async function streamByoScreen(params: {
   if (!produced) throw new Error(providerError || "Your own provider key returned no design output for this screen.");
   const validationError = validateGeneratedHtml(produced);
   if (validationError) throw new Error(validationError);
+
+  // Automated visual critique: score the finished screen on hierarchy,
+  // contrast, spacing, responsiveness and polish, then run one self-repair
+  // pass when it falls short. Weaker models (Gemini Flash especially) ship
+  // flat screens that this catches before the user ever sees them.
+  const { critiqueDesignHtml, critiqueToBrief } = await import("@/lib/designCritique.server");
+  const critique = critiqueDesignHtml(produced);
+  emit({
+    type: "screen-critique",
+    screenId,
+    score: critique.score,
+    passed: critique.passed,
+    issues: critique.issues.map(({ area, message }) => ({ area, message })),
+  });
+
+  if (!critique.passed && !signal.aborted) {
+    const revised = await reviseScreen({
+      byo,
+      system,
+      userPrompt: `${userText}\n\n${critiqueToBrief(critique)}\n\nCURRENT HTML (rewrite it in full):\n${produced}`,
+      signal,
+    });
+    if (revised) {
+      const revisedCritique = critiqueDesignHtml(revised);
+      if (revisedCritique.score > critique.score) {
+        produced = revised;
+        emit({ type: "screen-replace", screenId, html: revised });
+        emit({
+          type: "screen-critique",
+          screenId,
+          score: revisedCritique.score,
+          passed: revisedCritique.passed,
+          issues: revisedCritique.issues.map(({ area, message }) => ({ area, message })),
+        });
+      }
+    }
+  }
+
   emit({ type: "screen-complete", screenId });
 }
+
+/**
+ * One non-streaming repair round with the user's own key: ask the same model to
+ * return a corrected full document that resolves the critique's findings.
+ * Returns null whenever the retry fails or comes back unusable.
+ */
+async function reviseScreen(params: {
+  byo: { provider: string; apiKey: string; model: string };
+  system: string;
+  userPrompt: string;
+  signal: AbortSignal;
+}): Promise<string | null> {
+  const { byo, system, userPrompt, signal } = params;
+  try {
+    const { streamChatWithUserKey } = await import("@/lib/providerAdapters.server");
+    const upstream = await streamChatWithUserKey({
+      provider: byo.provider as never,
+      apiKey: byo.apiKey,
+      model: byo.model,
+      systemPrompt: system,
+      userPrompt,
+    });
+    if (!upstream.ok || !upstream.body) return null;
+
+    let revised = "";
+    const filter = createHtmlOnlyFilter((text) => {
+      revised += text;
+    });
+    const parser = createParser({
+      onEvent(event) {
+        if (!event.data || event.data === "[DONE]") return;
+        try {
+          const payload = JSON.parse(event.data) as {
+            choices?: Array<{ delta?: { content?: string } }>;
+          };
+          const delta = payload.choices?.[0]?.delta?.content;
+          if (typeof delta === "string" && delta.length > 0) filter.push(delta);
+        } catch {
+          /* ignore malformed SSE frames */
+        }
+      },
+    });
+
+    const reader = upstream.body.pipeThrough(new TextDecoderStream()).getReader();
+    try {
+      while (true) {
+        if (signal.aborted) return null;
+        const { value, done } = await reader.read();
+        if (done) break;
+        parser.feed(value);
+      }
+    } finally {
+      reader.cancel().catch(() => {});
+      filter.flush();
+    }
+
+    if (validateGeneratedHtml(revised)) return null;
+    return revised;
+  } catch {
+    return null;
+  }
+}
+
 
 
 async function streamOneScreen(params: {
