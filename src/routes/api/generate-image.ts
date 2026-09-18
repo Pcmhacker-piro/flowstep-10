@@ -330,11 +330,13 @@ async function streamByoScreen(params: {
   byo: { provider: string; apiKey: string; model: string; userId?: string | null };
   system: string;
   userText: string;
+  images: string[];
   screenId: string;
   emit: (event: StreamEvent) => void;
   signal: AbortSignal;
 }) {
-  const { byo, system, userText, screenId, emit, signal } = params;
+  const { byo, userText, images, screenId, emit, signal } = params;
+  const system = `${params.system}\n\n${byoCraftAddendum}`;
   const { streamChatWithUserKey, providerErrorMessage } = await import("@/lib/providerAdapters.server");
 
   let produced = "";
