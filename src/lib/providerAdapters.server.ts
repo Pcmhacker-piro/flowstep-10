@@ -111,10 +111,12 @@ function mapModelForProvider(provider: ProviderId, modelId: string): string[] {
   const [, name = ""] = modelId.split("/");
   const lower = name.toLowerCase();
   if (provider === "gemini") {
-    // Use Google's "-latest" aliases so retired versions don't 404 the request.
-    if (lower.includes("flash-lite") || lower.includes("flash_lite")) return ["gemini-flash-lite-latest"];
-    if (lower.includes("flash")) return ["gemini-flash-latest", "gemini-pro-latest"];
-    return ["gemini-pro-latest", "gemini-flash-latest"];
+    // Strongest first. Flash-lite is never used as an automatic fallback: it
+    // produces visibly weaker layouts, so only an explicit lite pick lands there.
+    if (lower.includes("flash-lite") || lower.includes("flash_lite"))
+      return ["gemini-flash-lite-latest", "gemini-flash-latest"];
+    if (lower.includes("flash")) return ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-pro"];
+    return ["gemini-2.5-pro", "gemini-pro-latest", "gemini-flash-latest"];
   }
   if (provider === "openai") {
     // Lovable exposes ids like gpt-6-astra that don't exist on OpenAI direct — ask for the
