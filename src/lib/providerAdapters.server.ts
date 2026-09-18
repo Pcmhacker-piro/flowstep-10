@@ -101,31 +101,53 @@ export function pickProviderForModel(
   return null;
 }
 
-/** Map a Lovable-gateway `vendor/model` id to the model id the provider's own API expects. */
-function mapModelForProvider(provider: ProviderId, modelId: string): string {
+/**
+ * Map a Lovable-gateway `vendor/model` id to an ordered list of model ids the
+ * provider's own API may accept, strongest first. Design quality depends heavily
+ * on landing on a flagship model, so we ask for the best one and only step down
+ * when the provider answers 404/429 for it.
+ */
+function mapModelForProvider(provider: ProviderId, modelId: string): string[] {
   const [, name = ""] = modelId.split("/");
   const lower = name.toLowerCase();
   if (provider === "gemini") {
     // Use Google's "-latest" aliases so retired versions don't 404 the request.
-    if (lower.includes("pro")) return "gemini-pro-latest";
-    if (lower.includes("flash-lite") || lower.includes("flash_lite")) return "gemini-flash-lite-latest";
-    if (lower.includes("flash")) return "gemini-flash-latest";
-    return "gemini-flash-latest";
+    if (lower.includes("flash-lite") || lower.includes("flash_lite")) return ["gemini-flash-lite-latest"];
+    if (lower.includes("flash")) return ["gemini-flash-latest", "gemini-pro-latest"];
+    return ["gemini-pro-latest", "gemini-flash-latest"];
   }
   if (provider === "openai") {
-    // Lovable exposes future ids like gpt-5.5 that don't exist on OpenAI direct — fall back to a real strong model.
-    if (lower.startsWith("gpt-5") || lower.startsWith("gpt-6") || lower.includes("sol") || lower.includes("terra") || lower.includes("luna"))
-      return lower.includes("mini") || lower.includes("nano") ? "gpt-4o-mini" : "gpt-4o";
-    return name || "gpt-4o";
+    // Lovable exposes ids like gpt-6-astra that don't exist on OpenAI direct — ask for the
+    // strongest real model first, then step down through ids every account can serve.
+    const small = lower.includes("mini") || lower.includes("nano") || lower.includes("luna");
+    if (lower.startsWith("gpt-5") || lower.startsWith("gpt-6") || lower.includes("sol") || lower.includes("terra") || lower.includes("luna")) {
+      return small
+        ? ["gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"]
+        : ["gpt-5.1", "gpt-5", "gpt-4.1", "gpt-4o"];
+    }
+    return [name || "gpt-4.1", "gpt-4.1", "gpt-4o"];
   }
   if (provider === "anthropic") {
-    if (lower.includes("haiku")) return "claude-3-5-haiku-latest";
-    if (lower.includes("opus")) return "claude-opus-4-20250514";
-    return "claude-sonnet-4-20250514";
+    if (lower.includes("haiku")) return ["claude-haiku-4-5", "claude-3-5-haiku-latest"];
+    if (lower.includes("opus")) return ["claude-opus-4-5", "claude-opus-4-20250514", "claude-sonnet-4-5"];
+    return ["claude-sonnet-4-5", "claude-sonnet-4-20250514"];
   }
-  if (provider === "openrouter") return modelId; // native vendor/model
-  return name || modelId;
+  if (provider === "openrouter") return [modelId]; // native vendor/model
+  return [name || modelId];
 }
+
+/** Providers whose OpenAI-compatible endpoint accepts image parts in a user message. */
+const VISION_PROVIDERS = new Set<ProviderId>(["openai", "gemini", "openrouter", "anthropic"]);
+
+/** Generous completion budgets — premium design HTML routinely runs past 8k tokens. */
+const OUTPUT_BUDGET: Record<ProviderId, number> = {
+  openai: 32768,
+  gemini: 32768,
+  openrouter: 32768,
+  anthropic: 32000,
+  nvidia: 16384,
+  groq: 16384,
+};
 
 /** Pull the human-readable error out of a provider's error body. */
 export function providerErrorMessage(provider: ProviderId, status: number, body: string): string {
