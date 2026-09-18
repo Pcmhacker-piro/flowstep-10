@@ -339,8 +339,8 @@ function validateGeneratedHtml(text: string) {
  * Gemini in particular likes to open with a sentence of commentary and wrap the
  * page in a ```html fence, which renders as literal junk on the canvas.
  */
-function createHtmlOnlyFilter(onText: (text: string) => void) {
-  let started = false;
+function createHtmlOnlyFilter(onText: (text: string) => void, alreadyStarted = false) {
+  let started = alreadyStarted;
   let head = "";
   let tail = "";
 
