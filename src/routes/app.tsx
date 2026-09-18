@@ -36,6 +36,9 @@ import {
   Save,
   Share2,
   LayoutGrid,
+  Monitor,
+  Tablet,
+  Smartphone,
 } from "lucide-react";
 
 import { DesignFrame, type DeviceViewport, type PartSelection } from "@/components/DesignFrame";
