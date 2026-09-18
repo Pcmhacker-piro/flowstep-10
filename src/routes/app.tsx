@@ -45,6 +45,9 @@ import { exportDesignZip, exportDesignImage } from "@/lib/exportDesign";
 
 
 export const Route = createFileRoute("/app")({
+  validateSearch: (s: Record<string, unknown>): { design?: string } => ({
+    design: typeof s.design === "string" ? s.design : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "AI Design Canvas — Flowstep" },
