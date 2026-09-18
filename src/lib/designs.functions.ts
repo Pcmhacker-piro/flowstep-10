@@ -126,7 +126,7 @@ export const getMyDesign = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) return null;
-    return { ...toSummary(row), items: (row.items as unknown[]) ?? [] };
+    return { ...toSummary(row), items: (row.items as StoredCanvasItem[]) ?? [] };
   });
 
 export const renameMyDesign = createServerFn({ method: "POST" })
@@ -240,6 +240,6 @@ export const getSharedDesign = createServerFn({ method: "POST" })
       prompt: row.prompt,
       screenCount: row.screen_count,
       updatedAt: row.updated_at,
-      items: (row.items as unknown[]) ?? [],
+      items: (row.items as StoredCanvasItem[]) ?? [],
     };
   });
