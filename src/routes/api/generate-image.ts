@@ -351,6 +351,7 @@ async function streamByoScreen(params: {
       model: byo.model,
       systemPrompt: system,
       userPrompt: userText,
+      ...(images.length > 0 ? { images } : {}),
       ...(produced ? { continueFrom: produced } : {}),
     });
 
