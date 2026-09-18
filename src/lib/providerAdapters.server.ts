@@ -151,6 +151,34 @@ const OUTPUT_BUDGET: Record<ProviderId, number> = {
   groq: 16384,
 };
 
+/**
+ * Gemini (Flash especially) defaults to safe, generic admin-panel layouts with
+ * flat grey cards, uniform type and no focal point. This addendum forces the
+ * same craft bar the stronger models hit on their own.
+ */
+const GEMINI_CRAFT_ADDENDUM = `NON-NEGOTIABLE CRAFT BAR — you are a senior product designer, not a wireframe generator.
+
+Composition
+- Establish a clear visual hierarchy: one dominant focal area, secondary supporting blocks, quiet tertiary detail. Never a flat grid of same-weight cards.
+- Use an intentional asymmetric layout with real structure (sidebar + content + detail rail, or hero + dense supporting sections). Vary column widths; never split everything 50/50.
+- Generous, deliberate spacing: section rhythm of 48-96px, card padding 20-32px, consistent 8px scale. No cramped rows, no uniform 16px everywhere.
+
+Type
+- Strong typographic contrast: display heading 32-56px with tight tracking (-0.02em), section labels 11-12px uppercase with wide tracking, body 14-15px at 1.5-1.6 line-height.
+- Use one distinctive Google font pairing loaded via <link> (never Inter + Poppins defaults, never system-ui only). Numerals in data UI use a mono or tabular face.
+
+Colour and surface
+- Commit to one opinionated palette: a real brand hue with 2-3 tonal steps, one accent, warm or cool neutrals — never plain #fff on #f5f5f5 grey with blue links.
+- Layer surfaces with subtle depth: hairline borders (1px at ~8% ink), soft large-radius shadows, slight tint differences between page, panel and card. Radii consistent (10-16px), never mixed randomly.
+
+Detail that reads as premium
+- Real, specific content: plausible names, dates, numbers, copy — never "Lorem ipsum" or "Item 1".
+- Considered states: hover/focus styles, active nav treatment, badges/chips with tinted backgrounds matching their meaning, empty-state and loading polish where relevant.
+- Crisp inline SVG icons (1.5px stroke, consistent 20px box). No emoji as icons, no icon fonts.
+- Responsive: layout reflows sensibly at 834px and 390px using flex/grid and media queries.
+
+Before writing, silently plan the grid, palette, type scale and focal point; then output only the finished HTML document.`;
+
 /** Pull the human-readable error out of a provider's error body. */
 export function providerErrorMessage(provider: ProviderId, status: number, body: string): string {
   let detail = "";
