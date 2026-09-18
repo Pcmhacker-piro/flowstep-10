@@ -102,13 +102,18 @@ export function DesignFrame({
   onPickPart,
   onUnpickPart,
   onContentHeight,
+  viewport = "desktop",
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   // The card keeps the design's 1440px-wide viewport and grows vertically with
   // the page, so a tall generated site is shown in full rather than cropped to
   // the first fold.
   const [innerH, setInnerH] = useState(Math.max(INNER_H, Math.round((height / Math.max(width, 1)) * INNER_W)));
+  // Scale stays tied to the desktop width, so a tablet/mobile page renders as a
+  // proportionally narrow device column centred inside the same card.
   const scale = width / INNER_W;
+  const innerW = VIEWPORT_WIDTHS[viewport];
+  const offsetX = (INNER_W - innerW) / 2;
 
   // The iframe document is written incrementally (document.write) instead of
   // being re-created through srcDoc on every streamed chunk — a fresh srcDoc
