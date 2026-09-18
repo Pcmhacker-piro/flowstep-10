@@ -547,6 +547,111 @@ function AppHome() {
     navigate({ to: "/auth", replace: true });
   }
 
+  // Open a saved design when the canvas is entered as /app?design=<id>.
+  const requestedDesignId = search.design ?? null;
+  useEffect(() => {
+    if (!requestedDesignId || !email) return;
+    let cancelled = false;
+    loadDesignFn({ data: { id: requestedDesignId } })
+      .then((saved) => {
+        if (cancelled || !saved) return;
+        setDesignId(saved.id);
+        setDesignName(saved.name);
+        setItems((saved.items as CanvasItem[]) ?? []);
+        setLastSavedAt(saved.updatedAt);
+        setShareUrl(
+          saved.isPublic && saved.shareToken
+            ? `${window.location.origin}/d/${saved.shareToken}`
+            : null,
+        );
+        setMessages((m) => [
+          ...m,
+          { id: uid(), role: "assistant", text: `Opened "${saved.name}" from your library.` },
+        ]);
+      })
+      .catch(() => toast.error("We couldn't open that design."));
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedDesignId, email, loadDesignFn]);
+
+  const designCount = items.filter((i) => i.type === "design").length;
+
+  async function saveToLibrary() {
+    if (designCount === 0) {
+      toast.error("Generate a screen before saving.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const firstDesign = items.find((i) => i.type === "design");
+      const saved = await saveDesignFn({
+        data: {
+          id: designId,
+          name: designName.trim() || "Untitled design",
+          prompt: firstDesign && firstDesign.type === "design" ? firstDesign.prompt : prompt,
+          model,
+          items,
+        },
+      });
+      setDesignId(saved.id);
+      setLastSavedAt(saved.updatedAt);
+      toast.success("Saved to your library");
+    } catch {
+      toast.error("Couldn't save this design. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleShareLink() {
+    let id = designId;
+    if (!id) {
+      if (designCount === 0) {
+        toast.error("Generate a screen before sharing.");
+        return;
+      }
+      setSaving(true);
+      try {
+        const saved = await saveDesignFn({
+          data: {
+            id: null,
+            name: designName.trim() || "Untitled design",
+            prompt,
+            model,
+            items,
+          },
+        });
+        id = saved.id;
+        setDesignId(saved.id);
+        setLastSavedAt(saved.updatedAt);
+      } catch {
+        toast.error("Couldn't save this design, so it can't be shared yet.");
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    setSharing(true);
+    try {
+      const updated = await shareDesignFn({ data: { id, isPublic: !shareUrl } });
+      if (updated.isPublic && updated.shareToken) {
+        const url = `${window.location.origin}/d/${updated.shareToken}`;
+        setShareUrl(url);
+        await navigator.clipboard?.writeText(url).catch(() => {});
+        toast.success("Public link copied to clipboard");
+      } else {
+        setShareUrl(null);
+        toast.success("Sharing turned off");
+      }
+    } catch {
+      toast.error("Couldn't update the share link.");
+    } finally {
+      setSharing(false);
+    }
+  }
+
   // Panning state
   const panState = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
   // Drag state for items
