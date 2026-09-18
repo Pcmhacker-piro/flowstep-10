@@ -1333,7 +1333,42 @@ function AppHome() {
             className="ml-3 min-w-0 max-w-[240px] rounded-md bg-transparent px-1.5 py-0.5 text-sm text-[#0b1220]/70 outline-none hover:bg-black/5 focus:bg-black/5 focus:text-[#0b1220]"
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {lastSavedAt && (
+            <span className="hidden text-xs text-[#0b1220]/45 lg:inline">
+              Saved {new Date(lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          <button
+            onClick={saveToLibrary}
+            disabled={saving || designCount === 0}
+            title="Save this canvas to your library"
+            className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-[#0b1220]/80 transition-colors duration-150 hover:bg-black/5 hover:text-[#0b1220] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{saving ? "Saving…" : designId ? "Save" : "Save"}</span>
+          </button>
+          <button
+            onClick={toggleShareLink}
+            disabled={sharing || designCount === 0}
+            title={shareUrl ? "Copy or turn off the public link" : "Create a public share link"}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${
+              shareUrl
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                : "border-black/10 bg-white text-[#0b1220]/80 hover:bg-black/5 hover:text-[#0b1220]"
+            }`}
+          >
+            {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{shareUrl ? "Shared" : "Share"}</span>
+          </button>
+          <Link
+            to="/library"
+            title="Your saved designs"
+            className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-[#0b1220]/80 transition-colors duration-150 hover:bg-black/5 hover:text-[#0b1220]"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Library</span>
+          </Link>
           <Link
             to="/account"
             className="hidden items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-[#0b1220]/80 hover:bg-black/5 hover:text-[#0b1220] sm:inline-flex"
