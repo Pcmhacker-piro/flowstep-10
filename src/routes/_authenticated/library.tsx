@@ -63,8 +63,10 @@ function Thumbnail({ html }: { html: string | null }) {
       <iframe
         title="Design preview"
         srcDoc={html}
-        sandbox=""
+        sandbox="allow-scripts"
         loading="lazy"
+        scrolling="no"
+        tabIndex={-1}
         className="h-[1600px] w-[1440px] origin-top-left border-0"
         style={{ transform: "scale(0.24)" }}
       />
