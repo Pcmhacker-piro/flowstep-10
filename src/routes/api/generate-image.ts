@@ -499,11 +499,13 @@ async function streamByoScreen(params: {
   if (!produced) throw new Error(providerError || "Your own provider key returned no design output for this screen.");
   const validationError = validateGeneratedHtml(produced);
   if (validationError) throw new Error(validationError);
+  // Show the finished screen first: the critique pass below can take another
+  // full generation, and the canvas must never sit on a placeholder while it runs.
+  emit({ type: "screen-complete", screenId });
 
-  // Automated visual critique: score the finished screen on hierarchy,
-  // contrast, spacing, responsiveness and polish, then run one self-repair
-  // pass when it falls short. Weaker models (Gemini Flash especially) ship
-  // flat screens that this catches before the user ever sees them.
+  // Automated visual critique: score the screen on hierarchy, contrast,
+  // spacing, responsiveness and polish, then run one self-repair pass when it
+  // falls short and swap the better version onto the canvas.
   const { critiqueDesignHtml, critiqueToBrief } = await import("@/lib/designCritique.server");
   const critique = critiqueDesignHtml(produced);
   emit({
@@ -537,7 +539,6 @@ async function streamByoScreen(params: {
     }
   }
 
-  emit({ type: "screen-complete", screenId });
 }
 
 /**

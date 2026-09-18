@@ -1266,7 +1266,8 @@ function AppHome() {
             }
           } else if (payload.type === "screen-replace") {
             htmlByScreen.set(payload.screenId, payload.html);
-            flushScreen(payload.screenId, false);
+            flushScreen(payload.screenId, true);
+
           } else if (payload.type === "screen-complete") {
             flushScreen(payload.screenId, true);
 
