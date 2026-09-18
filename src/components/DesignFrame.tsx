@@ -182,7 +182,9 @@ export function DesignFrame({
       if (Math.abs(next - last) < 4) return;
       last = next;
       setInnerH(next);
-      onContentHeight?.(id, next);
+      // Report in desktop-equivalent units so the card keeps the device aspect.
+      onContentHeight?.(id, Math.round((next * INNER_W) / innerW));
+
     };
 
     measure();
