@@ -109,11 +109,12 @@ export function DesignFrame({
   // the page, so a tall generated site is shown in full rather than cropped to
   // the first fold.
   const [innerH, setInnerH] = useState(Math.max(INNER_H, Math.round((height / Math.max(width, 1)) * INNER_W)));
-  // Scale stays tied to the desktop width, so a tablet/mobile page renders as a
-  // proportionally narrow device column centred inside the same card.
-  const scale = width / INNER_W;
+  // The device column always fills the card width, so a tablet/mobile preview is
+  // shown at a readable size instead of a tiny strip with large empty margins.
   const innerW = VIEWPORT_WIDTHS[viewport];
-  const offsetX = (INNER_W - innerW) / 2;
+  const scale = width / innerW;
+  const offsetX = 0;
+
 
   // The iframe document is written incrementally (document.write) instead of
   // being re-created through srcDoc on every streamed chunk — a fresh srcDoc
