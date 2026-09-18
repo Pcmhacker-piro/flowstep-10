@@ -1906,6 +1906,7 @@ function AppHome() {
                         onPickPart={onPickPart}
                         onUnpickPart={onUnpickPart}
                         onContentHeight={onContentHeight}
+                        viewport={viewport}
                       />
 
                     </div>
