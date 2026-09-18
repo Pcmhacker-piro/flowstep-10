@@ -38,7 +38,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 
-import { DesignFrame, type PartSelection } from "@/components/DesignFrame";
+import { DesignFrame, type DeviceViewport, type PartSelection } from "@/components/DesignFrame";
 import { readSnippetAtPath, spliceAtPath } from "@/lib/htmlSplice";
 import { Inspector } from "@/components/Inspector";
 import { exportDesignZip, exportDesignImage } from "@/lib/exportDesign";
