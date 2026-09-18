@@ -33,6 +33,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Maximize2,
+  Save,
+  Share2,
+  LayoutGrid,
 } from "lucide-react";
 
 import { DesignFrame, type PartSelection } from "@/components/DesignFrame";
